@@ -19,6 +19,6 @@ echo "Starting Nakama Server..."
 exec /nakama/nakama \
   --name nakama1 \
   --database.address "$DB_ADDR" \
-  --socket.port 7350 \
+  --socket.port "${PORT:-7350}" \
   --session.token_expiry_sec 7200 \
   --logger.level INFO

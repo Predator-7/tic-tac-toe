@@ -2,9 +2,9 @@ import { Client, Session } from '@heroiclabs/nakama-js';
 import type { Socket } from '@heroiclabs/nakama-js';
 import { v4 as uuidv4 } from 'uuid';
 
-const host = import.meta.env.VITE_NAKAMA_HOST || '127.0.0.1';
-const port = import.meta.env.VITE_NAKAMA_PORT || '7350';
-const useSSL = import.meta.env.VITE_NAKAMA_SSL === 'true';
+const host = import.meta.env.VITE_NAKAMA_HOST?.trim() || 'tic-tac-toe-production-1a73.up.railway.app';
+const port = import.meta.env.VITE_NAKAMA_PORT?.trim() || '443';
+const useSSL = (import.meta.env.VITE_NAKAMA_SSL?.trim() || 'true') === 'true';
 
 export const nakamaClient = new Client('defaultkey', host, port, useSSL);
 
