@@ -1,5 +1,5 @@
 #!/bin/sh
-
+# Final trigger to ensure Railway builds the latest version
 # Ensure DATABASE_URL is present
 if [ -z "$DATABASE_URL" ]; then
   echo "Error: DATABASE_URL is not set."
