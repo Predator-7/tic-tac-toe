@@ -22,5 +22,8 @@ echo "Running migrations..."
 
 echo "Starting Nakama Server..."
 exec /nakama/nakama run \
+  --name "nakama1" \
+  --database.address "$DB_ADDR" \
+  --socket.port "${PORT:-7350}" \
   --session.token_expiry_sec 7200 \
   --logger.level INFO
