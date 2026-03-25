@@ -10,12 +10,9 @@ echo "Running migrations..."
 /nakama/nakama migrate up --database.address "$DATABASE_URL"
 
 echo "Starting Nakama Server..."
-# IMPORTANT: Added 'server' subcommand which was missing
-exec /nakama/nakama server \
+exec /nakama/nakama \
   --name nakama-cloud \
   --database.address "$DATABASE_URL" \
   --socket.port 7350 \
   --session.token_expiry_sec 7200 \
-  --logger.level INFO \
-  --data_dir /nakama/data \
-  --console.port 7351
+  --logger.level INFO
