@@ -16,7 +16,7 @@ echo "Running migrations..."
 /nakama/nakama migrate up --database.address "$DB_ADDR"
 
 echo "Starting Nakama Server..."
-exec /nakama/nakama \
+exec /nakama/nakama run \
   --name nakama1 \
   --database.address "$DB_ADDR" \
   --socket.port "${PORT:-7350}" \
