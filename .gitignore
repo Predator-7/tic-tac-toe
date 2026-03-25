@@ -22,4 +22,7 @@ backend/build/
 
 # Nakama data
 data/
+nakama-data/
+nakama-local/
 nakama.log
+venv/
