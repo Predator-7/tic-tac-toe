@@ -1,17 +1,19 @@
 {
   "compilerOptions": {
-    "target": "ES2022",
-    "module": "ESNext",
-    "moduleResolution": "Node",
+    "target": "ES2015",
+    "lib": ["ES2015"],
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
-    "types": [
-      "nakama-runtime"
-    ]
+    "outFile": "./build/index.js",
+    "module": "amd",
+    "rootDir": "./src",
+    "types": ["nakama-runtime"],
+    "ignoreDeprecations": "6.0"
   },
-  "include": [
-    "src/**/*.ts"
+  "files": [
+    "./src/match.ts",
+    "./src/main.ts"
   ]
 }
