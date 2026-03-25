@@ -1,19 +1,16 @@
 {
   "compilerOptions": {
-    "target": "ES2015",
-    "lib": ["ES2015"],
+    "target": "ES5",
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
     "outFile": "./build/index.js",
-    "module": "amd",
     "rootDir": "./src",
     "types": ["nakama-runtime"],
     "ignoreDeprecations": "6.0"
   },
   "files": [
-    "./src/match.ts",
     "./src/main.ts"
   ]
 }
