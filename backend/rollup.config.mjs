@@ -8,7 +8,7 @@ export default {
         file: 'build/index.js',
         format: 'iife',
         name: 'index',
-        footer: 'var g = (typeof globalThis !== "undefined") ? globalThis : (typeof self !== "undefined") ? self : (typeof global !== "undefined") ? global : this; if (g) { Object.assign(g, index); }'
+        footer: 'var InitModule = index.InitModule;'
     },
     plugins: [
         resolve(),
