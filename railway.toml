@@ -3,6 +3,7 @@
   dockerfilePath = "backend/Dockerfile"
 
 [deploy]
+  startCommand = "/bin/sh /nakama/start.sh"
   healthcheckPath = "/"
   healthcheckTimeout = 300
   restartPolicyType = "ON_FAILURE"
