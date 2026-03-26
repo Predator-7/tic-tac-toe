@@ -13,8 +13,8 @@ interface MatchState {
     turn: 'X' | 'O';
     winner: 'X' | 'O' | 'Draw' | null;
     emptyMatch: boolean;
-    lastMoveTick: number; // For Timer-Based Game Mode
-    timerEnabled: boolean; // Bonus: Toggleable Timer Mode
+    lastMoveTick: number; 
+    timerEnabled: boolean;
 }
 
 const WINNING_COMBINATIONS = [
@@ -61,11 +61,6 @@ var matchJoinAttempt: nkruntime.MatchJoinAttemptFunction = function (ctx: nkrunt
     if (s.players.length >= 2) {
         return { state: s, accept: false, rejectReason: 'Match full' };
     }
-    for (var i = 0; i < s.players.length; i++) {
-        if (s.players[i].userId === presence.userId) {
-            return { state: s, accept: false, rejectReason: 'Already joined' };
-        }
-    }
     return { state: s, accept: true };
 };
 
@@ -80,79 +75,57 @@ var matchJoin: nkruntime.MatchJoinFunction = function (ctx: nkruntime.Context, l
             mark: mark
         });
     }
-
     if (s.players.length === 2 && s.timerEnabled && s.lastMoveTick === 0) {
         s.lastMoveTick = tick;
     }
-
-    dispatcher.broadcastMessage(1, JSON.stringify({ board: s.board, turn: s.turn, winner: s.winner, players: s.players, timerEnabled: s.timerEnabled, lastMoveTick: s.lastMoveTick }));
-
+    dispatcher.broadcastMessage(1, JSON.stringify(s));
     return { state: s };
 };
 
 var matchLeave: nkruntime.MatchLeaveFunction = function (ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, dispatcher: nkruntime.MatchDispatcher, tick: number, state: nkruntime.MatchState, presences: nkruntime.Presence[]) {
     var s = state as MatchState;
-    var remaining: Player[] = [];
-    for (var i = 0; i < s.players.length; i++) {
-        var found = false;
-        for (var j = 0; j < presences.length; j++) {
-            if (s.players[i].userId === presences[j].userId) {
-                found = true;
-                break;
-            }
-        }
-        if (!found) {
-            remaining.push(s.players[i]);
-        }
-    }
-    s.players = remaining;
-
+    s.players = s.players.filter(p => !presences.find(pr => pr.userId === p.userId));
     if (s.players.length === 0) {
         s.emptyMatch = true;
     } else if (s.winner === null) {
         var remainingPlayer = s.players[0];
         s.winner = remainingPlayer.mark;
-        
-        // Record win in leaderboard
-        try {
-            nk.leaderboardRecordWrite('tic_tac_toe_wins', remainingPlayer.userId, remainingPlayer.username, 1);
-            logger.info('Leaderboard record (win/forfeit) for: ' + remainingPlayer.username + ' (' + remainingPlayer.userId + ')');
-        } catch (e) {
-            logger.error('Failed to update leaderboard: ' + e);
-        }
-
-        dispatcher.broadcastMessage(1, JSON.stringify({ board: s.board, turn: s.turn, winner: s.winner, players: s.players, timerEnabled: s.timerEnabled, lastMoveTick: s.lastMoveTick }));
+        recordWin(nk, logger, remainingPlayer.userId, remainingPlayer.username);
+        dispatcher.broadcastMessage(1, JSON.stringify(s));
     }
-
     return { state: s };
 };
 
+function recordWin(nk: nkruntime.Nakama, logger: nkruntime.Logger, userId: string, username: string) {
+    try {
+        // Use system-level recording
+        nk.leaderboardRecordWrite('tic_tac_toe_wins', userId, username, 1);
+        logger.info('Leaderboard record saved for: ' + username + ' (' + userId + ')');
+        
+        // Backup to Storage Collection just in case
+        nk.storageWrite([{
+            collection: 'stats',
+            key: 'wins',
+            userId: userId,
+            value: { count: 1 },
+            permissionRead: 2,
+            permissionWrite: 0
+        }]);
+    } catch (e) {
+        logger.error('Failed to record win: ' + e);
+    }
+}
+
 var matchLoop: nkruntime.MatchLoopFunction = function (ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, dispatcher: nkruntime.MatchDispatcher, tick: number, state: nkruntime.MatchState, messages: nkruntime.MatchMessage[]) {
     var s = state as MatchState;
+    if (s.emptyMatch) return null;
 
-    if (s.emptyMatch) {
-        return null;
-    }
-
-    // Timer logic: check if turn timed out (30 seconds = 300 ticks)
     if (s.timerEnabled && !s.winner && s.players.length === 2 && s.lastMoveTick > 0) {
         if (tick - s.lastMoveTick > 300) {
-            // Current player loses by timeout
-            var currentMark = s.turn;
-            s.winner = (currentMark === 'X' ? 'O' : 'X');
-            
-            // Record win for the other player
+            s.winner = (s.turn === 'X' ? 'O' : 'X');
             var winnerPlayer = s.players.find((p: Player) => p.mark === s.winner);
-            if (winnerPlayer) {
-                try {
-                    nk.leaderboardRecordWrite('tic_tac_toe_wins', winnerPlayer.userId, winnerPlayer.username, 1);
-                    logger.info('Leaderboard record (timeout win) for: ' + winnerPlayer.username);
-                } catch (e) {
-                    logger.error('Failed to update leaderboard on timeout: ' + e);
-                }
-            }
-
-            dispatcher.broadcastMessage(1, JSON.stringify({ board: s.board, turn: s.turn, winner: s.winner, players: s.players, timerEnabled: s.timerEnabled, lastMoveTick: s.lastMoveTick }));
+            if (winnerPlayer) recordWin(nk, logger, winnerPlayer.userId, winnerPlayer.username);
+            dispatcher.broadcastMessage(1, JSON.stringify(s));
         }
     }
 
@@ -160,44 +133,28 @@ var matchLoop: nkruntime.MatchLoopFunction = function (ctx: nkruntime.Context, l
         var message = messages[mi];
         if (message.opCode === 2) {
             if (s.winner) continue;
-
-            var player: Player | null = null;
-            for (var pi = 0; pi < s.players.length; pi++) {
-                if (s.players[pi].userId === message.sender.userId) {
-                    player = s.players[pi];
-                    break;
-                }
-            }
-            if (!player) continue;
-
+            var pIdx = -1;
+            for(var i=0; i<s.players.length; i++) if(s.players[i].userId === message.sender.userId) { pIdx = i; break; }
+            if (pIdx === -1) continue;
+            var player = s.players[pIdx];
             if (s.turn !== player.mark) continue;
 
             var data = JSON.parse(nk.binaryToString(message.data));
             var pos = data.position;
-
             if (pos >= 0 && pos < 9 && s.board[pos] === '') {
                 s.board[pos] = player.mark;
                 s.winner = checkWinner(s.board);
-                
                 if (s.winner && s.winner !== 'Draw') {
-                    // Record win in leaderboard
-                    try {
-                        nk.leaderboardRecordWrite('tic_tac_toe_wins', player.userId, player.username, 1);
-                        logger.info('Leaderboard record (game win) for: ' + player.username + ' (' + player.userId + ')');
-                    } catch (e) {
-                        logger.error('Failed to update leaderboard: ' + e);
-                    }
+                    recordWin(nk, logger, player.userId, player.username);
                 }
-
                 if (!s.winner) {
                     s.turn = s.turn === 'X' ? 'O' : 'X';
-                    s.lastMoveTick = tick; // Reset timer for next player
+                    s.lastMoveTick = tick;
                 }
-                dispatcher.broadcastMessage(1, JSON.stringify({ board: s.board, turn: s.turn, winner: s.winner, players: s.players, timerEnabled: s.timerEnabled, lastMoveTick: s.lastMoveTick }));
+                dispatcher.broadcastMessage(1, JSON.stringify(s));
             }
         }
     }
-
     return { state: s };
 };
 
@@ -209,28 +166,23 @@ var matchSignal: nkruntime.MatchSignalFunction = function (ctx: nkruntime.Contex
     return { state: state, data: "ok" };
 };
 
-// RPC to fetch leaderboard records
 var getLeaderboard: nkruntime.RpcFunction = function (ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string) {
     try {
         var records = nk.leaderboardRecordsList('tic_tac_toe_wins', undefined, 10);
-        logger.debug('Leaderboard fetch successful: ' + JSON.stringify(records));
+        logger.info('RPC get_leaderboard returning ' + (records.records ? records.records.length : 0) + ' records.');
         return JSON.stringify(records);
     } catch (e) {
-        logger.error('RPC Error (get_leaderboard): ' + e);
+        logger.error('RPC Error: ' + e);
         return JSON.stringify({ records: [] });
     }
 };
 
-// Matchmaker callback MUST be a named function for Nakama's goja JS runtime
-var matchmakerMatched: nkruntime.MatchmakerMatchedFunction = function (ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, entries: nkruntime.MatchmakerResult[]) {
+var matchmakerMatched: nkruntime.MatchmakerMatchedFunction = function (ctx, logger, nk, entries) {
     var mode = 'classic';
-    if (entries.length > 0 && entries[0].properties) {
-        mode = entries[0].properties.mode || 'classic';
-    }
+    if (entries.length > 0 && entries[0].properties) mode = entries[0].properties.mode || 'classic';
     return nk.matchCreate('tictactoe', { mode: mode });
 };
 
-// InitModule MUST be a top-level function for Nakama's goja JS engine
 function InitModule(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, initializer: nkruntime.Initializer) {
     initializer.registerMatch('tictactoe', {
         matchInit: matchInit,
@@ -243,20 +195,15 @@ function InitModule(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkrunt
     });
 
     initializer.registerMatchmakerMatched(matchmakerMatched);
-    
-    // Register RPC
     initializer.registerRpc('get_leaderboard', getLeaderboard);
 
-    // Create Leaderboard if it doesn't exist
     try {
-        // Enums for SortOrder and Operator:
-        // DESC=0, ASC=1
-        // SET=0, BEST=1, INCR=2
-        nk.leaderboardCreate('tic_tac_toe_wins', true, 0 as any, 2 as any, '0 0 * * *', {});
-        logger.info('Leaderboard "tic_tac_toe_wins" initialized.');
+        // Use strings for enums (Goja preferred)
+        nk.leaderboardCreate('tic_tac_toe_wins', true, 'desc' as any, 'incr' as any, '0 0 * * *', {});
+        logger.info('Leaderboard "tic_tac_toe_wins" initialized with strings (desc/incr).');
     } catch (e) {
-        logger.error('Leaderboard Creation Error: ' + e);
+        logger.error('LB Init Error: ' + e);
     }
 
-    logger.info('Tic-Tac-Toe module loaded (Server-Authoritative).');
+    logger.info('Tic-Tac-Toe module loaded.');
 }
