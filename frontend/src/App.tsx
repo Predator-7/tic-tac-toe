@@ -110,7 +110,7 @@ function App() {
             
             setMatchmaking(true);
             // Add matchmaking with properties for mode selection
-            const query = `* properties.mode:${gameMode}`;
+            const query = `+properties.mode:${gameMode}`;
             await socket.addMatchmaker(query, 2, 2, { mode: gameMode });
         } catch (err) {
             console.error(err);
