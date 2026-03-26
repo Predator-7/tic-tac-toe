@@ -7,6 +7,7 @@ interface Player {
     userId: string;
     sessionId: string;
     username: string;
+    nickname: string;
     mark: 'X' | 'O';
 }
 
@@ -20,9 +21,10 @@ interface GameState {
 }
 
 interface LeaderboardRecord {
-    owner_id: string;
     username: string;
-    score: number;
+    wins: number;
+    losses: number;
+    streak: number;
 }
 
 function App() {
@@ -79,13 +81,9 @@ function App() {
 
     const fetchLeaderboard = async () => {
         try {
-            console.log('[App] Fetching leaderboard...');
             const lbData = await rpc('get_leaderboard');
-            console.log('[App] Leaderboard RPC Raw Payload:', lbData.payload);
             if (lbData.payload) {
-                // If the payload is already an object, use it; otherwise parse it
                 const parsed = typeof lbData.payload === 'string' ? JSON.parse(lbData.payload) : lbData.payload;
-                console.log('[App] Leaderboard Parsed:', parsed);
                 setLeaderboard(parsed.records || []);
             }
         } catch (e) {
@@ -113,7 +111,6 @@ function App() {
             await updateNickname(nickname);
             
             setMatchmaking(true);
-            // Add matchmaking with properties for mode selection and nickname
             const query = `+properties.mode:${gameMode}`;
             await socket.addMatchmaker(query, 2, 2, { mode: gameMode, nickname: nickname });
         } catch (err) {
@@ -165,30 +162,34 @@ function App() {
 
     if (!matchId) {
         return (
-            <div style={{textAlign: 'center', maxWidth: 400, margin: '0 auto'}}>
+            <div style={{textAlign: 'center', maxWidth: 500, margin: '0 auto'}}>
                 <h1 style={{fontSize: '3rem', marginBottom: 8}}>TIC TAC TOE</h1>
                 <p style={{marginBottom: 32, opacity: 0.7}}>Multiplayer • Server Authoritative • Nakama</p>
                 
                 {showLeaderboard ? (
-                    <div className="panel" style={{textAlign: 'left'}}>
+                    <div className="panel" style={{textAlign: 'left', width: '100%'}}>
                         <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20}}>
-                            <h2 style={{margin: 0}}>Leaderboard</h2>
+                            <h2 style={{margin: 0}}>Global Ranking</h2>
                             <button onClick={() => setShowLeaderboard(false)} style={{background: 'none', border: 'none', color: '#fff', cursor: 'pointer', fontSize: '1.2rem'}}>✕</button>
                         </div>
-                        <div style={{maxHeight: 300, overflowY: 'auto'}}>
+                        <div style={{maxHeight: 400, overflowY: 'auto'}}>
                             {leaderboard.length === 0 ? <p style={{opacity: 0.5}}>No records yet.</p> : (
                                 <table style={{width: '100%', borderCollapse: 'collapse'}}>
                                     <thead>
-                                        <tr style={{opacity: 0.5, fontSize: '0.8rem'}}>
-                                            <th style={{paddingBottom: 8, textAlign: 'left'}}>PLAYER</th>
-                                            <th style={{paddingBottom: 8, textAlign: 'right'}}>WINS</th>
+                                        <tr style={{opacity: 0.5, fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '1px'}}>
+                                            <th style={{paddingBottom: 12, textAlign: 'left'}}>Player</th>
+                                            <th style={{paddingBottom: 12, textAlign: 'center'}}>W</th>
+                                            <th style={{paddingBottom: 12, textAlign: 'center'}}>L</th>
+                                            <th style={{paddingBottom: 12, textAlign: 'center'}}>Streak</th>
                                         </tr>
                                     </thead>
                                     <tbody>
                                         {leaderboard.map((r, i) => (
                                             <tr key={i} style={{borderTop: '1px solid rgba(255,255,255,0.05)'}}>
-                                                <td style={{padding: '12px 0'}}>{r.username || r.owner_id.substring(0,8)}</td>
-                                                <td style={{padding: '12px 0', textAlign: 'right', fontWeight: 700}}>{r.score}</td>
+                                                <td style={{padding: '14px 0', fontSize: '0.9rem'}}>{r.username}</td>
+                                                <td style={{padding: '14px 0', textAlign: 'center', fontWeight: 700, color: 'var(--success-color)'}}>{r.wins}</td>
+                                                <td style={{padding: '14px 0', textAlign: 'center', opacity: 0.5}}>{r.losses}</td>
+                                                <td style={{padding: '14px 0', textAlign: 'center'}}>{r.streak ? `🔥 ${r.streak}` : '-'}</td>
                                             </tr>
                                         ))}
                                     </tbody>
@@ -242,7 +243,7 @@ function App() {
                                     style={{background: 'none', border: 'none', color: 'rgba(255,255,255,0.5)', marginTop: 20, cursor: 'pointer', fontSize: '0.9rem'}}
                                     onClick={() => { fetchLeaderboard(); setShowLeaderboard(true); }}
                                 >
-                                    View Global Leaderboard
+                                    View Global Ranking & Stats
                                 </button>
                                 
                                 {matchmaking && (
@@ -318,7 +319,7 @@ function App() {
 
                 <div className="players-info">
                     <div style={{opacity: me && gameState.turn === me.mark ? 1 : 0.5}}>You ({me?.mark}) {me && gameState.turn === me.mark ? '●' : ''}</div>
-                    <div style={{opacity: opponent && gameState.turn === opponent.mark ? 1 : 0.5}}>{opponent?.mark || '?'} {opponent?.username} {opponent && gameState.turn === opponent.mark ? '●' : ''}</div>
+                    <div style={{opacity: opponent && gameState.turn === opponent.mark ? 1 : 0.5}}>{opponent?.mark || '?'} {opponent?.nickname} {opponent && gameState.turn === opponent.mark ? '●' : ''}</div>
                 </div>
 
                 <div style={{marginTop: 20, textAlign: 'center', fontSize: '0.8rem', opacity: 0.4}}>

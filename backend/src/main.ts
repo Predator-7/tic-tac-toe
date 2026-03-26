@@ -3,8 +3,8 @@
 interface Player {
     userId: string;
     sessionId: string;
-    username: string; // Internal username
-    nickname: string; // Friendly nickname
+    username: string;
+    nickname: string;
     mark: 'X' | 'O';
 }
 
@@ -16,7 +16,7 @@ interface MatchState {
     emptyMatch: boolean;
     lastMoveTick: number; 
     timerEnabled: boolean;
-    nicknames: {[key: string]: string}; // Key: userId, Value: nickname
+    nicknames: {[key: string]: string};
 }
 
 const WINNING_COMBINATIONS = [
@@ -85,23 +85,50 @@ var matchJoin: nkruntime.MatchJoinFunction = function (ctx: nkruntime.Context, l
 
 var matchLeave: nkruntime.MatchLeaveFunction = function (ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, dispatcher: nkruntime.MatchDispatcher, tick: number, state: nkruntime.MatchState, presences: nkruntime.Presence[]) {
     var s = state as MatchState;
+    var leavingPlayers = s.players.filter(p => presences.find(pr => pr.userId === p.userId));
     s.players = s.players.filter(p => !presences.find(pr => pr.userId === p.userId));
-    if (s.players.length === 0) s.emptyMatch = true;
-    else if (s.winner === null) {
+    
+    if (s.players.length === 0) {
+        s.emptyMatch = true;
+    } else if (s.winner === null) {
         var remainingPlayer = s.players[0];
         s.winner = remainingPlayer.mark;
-        recordWin(nk, logger, remainingPlayer.userId, remainingPlayer.nickname);
+        
+        // Record results
+        recordMatchResult(nk, logger, remainingPlayer, leavingPlayers[0] || null, false);
+        
         dispatcher.broadcastMessage(1, JSON.stringify(s));
     }
     return { state: s };
 };
 
-function recordWin(nk: nkruntime.Nakama, logger: nkruntime.Logger, userId: string, nickname: string) {
+function recordMatchResult(nk: nkruntime.Nakama, logger: nkruntime.Logger, winner: Player | null, loser: Player | null, isDraw: boolean) {
     try {
-        nk.leaderboardRecordWrite('tic_tac_toe_wins', userId, nickname, 1, 0, {}, 'incr' as any);
-        logger.info('Leaderboard record save for user: ' + nickname);
+        if (isDraw) return; // Optional: could track draws too
+
+        if (winner) {
+            // Update Wins
+            nk.leaderboardRecordWrite('tic_tac_toe_wins', winner.userId, winner.nickname, 1, 0, {}, 'incr' as any);
+            
+            // Update Streak: Get current, increment, and store in metadata or separate tracker
+            // For simplicity in a single RPC fetch, we'll store streaks in the metadata of the 'wins' record
+            var records = nk.leaderboardRecordsList('tic_tac_toe_wins', [winner.userId], 1);
+            var currentStreak = 1;
+            if (records.ownerRecords && records.ownerRecords.length > 0) {
+                var meta = records.ownerRecords[0].metadata;
+                if (meta && meta.streak) currentStreak = (meta.streak as number) + 1;
+            }
+            nk.leaderboardRecordWrite('tic_tac_toe_wins', winner.userId, winner.nickname, 1, 0, { streak: currentStreak }, 'incr' as any);
+        }
+
+        if (loser) {
+            // Update Losses
+            nk.leaderboardRecordWrite('tic_tac_toe_losses', loser.userId, loser.nickname, 1, 0, { streak: 0 }, 'incr' as any);
+            // Reset streak in wins record too
+            nk.leaderboardRecordWrite('tic_tac_toe_wins', loser.userId, loser.nickname, 0, 0, { streak: 0 }, 'set' as any);
+        }
     } catch (e) {
-        logger.error('Failed to update leaderboard: ' + e);
+        logger.error('Failed to update match results: ' + e);
     }
 }
 
@@ -113,7 +140,8 @@ var matchLoop: nkruntime.MatchLoopFunction = function (ctx: nkruntime.Context, l
         if (tick - s.lastMoveTick > 300) {
             s.winner = (s.turn === 'X' ? 'O' : 'X');
             var winnerPlayer = s.players.find((p: Player) => p.mark === s.winner);
-            if (winnerPlayer) recordWin(nk, logger, winnerPlayer.userId, winnerPlayer.nickname);
+            var loserPlayer = s.players.find((p: Player) => p.mark !== s.winner);
+            recordMatchResult(nk, logger, winnerPlayer || null, loserPlayer || null, false);
             dispatcher.broadcastMessage(1, JSON.stringify(s));
         }
     }
@@ -130,8 +158,17 @@ var matchLoop: nkruntime.MatchLoopFunction = function (ctx: nkruntime.Context, l
             if (pos >= 0 && pos < 9 && s.board[pos] === '') {
                 s.board[pos] = player.mark;
                 s.winner = checkWinner(s.board);
-                if (s.winner && s.winner !== 'Draw') recordWin(nk, logger, player.userId, player.nickname);
-                if (!s.winner) { s.turn = s.turn === 'X' ? 'O' : 'X'; s.lastMoveTick = tick; }
+                
+                if (s.winner) {
+                    if (s.winner !== 'Draw') {
+                        var winnerP = s.players.find(p => p.mark === s.winner);
+                        var loserP = s.players.find(p => p.mark !== s.winner);
+                        recordMatchResult(nk, logger, winnerP || null, loserP || null, false);
+                    }
+                } else {
+                    s.turn = s.turn === 'X' ? 'O' : 'X';
+                    s.lastMoveTick = tick;
+                }
                 dispatcher.broadcastMessage(1, JSON.stringify(s));
             }
         }
@@ -149,8 +186,25 @@ var matchSignal: nkruntime.MatchSignalFunction = function (ctx: nkruntime.Contex
 
 var getLeaderboard: nkruntime.RpcFunction = function (ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string) {
     try {
-        var records = nk.leaderboardRecordsList('tic_tac_toe_wins', null as any, 10);
-        return JSON.stringify(records);
+        var winRecords = nk.leaderboardRecordsList('tic_tac_toe_wins', null as any, 10);
+        var lossRecords = nk.leaderboardRecordsList('tic_tac_toe_losses', null as any, 100);
+        
+        // Merge data for display
+        var combined = (winRecords.records || []).map(r => {
+            var losses = 0;
+            var lRecord = (lossRecords.records || []).find(lr => lr.ownerId === r.ownerId);
+            if (lRecord) losses = lRecord.score;
+            
+            return {
+                username: r.username,
+                userId: r.ownerId,
+                wins: r.score,
+                losses: losses,
+                streak: (r.metadata && r.metadata.streak) ? r.metadata.streak : 0
+            };
+        });
+
+        return JSON.stringify({ records: combined });
     } catch (e: any) {
         return JSON.stringify({ records: [] });
     }
@@ -188,7 +242,8 @@ function InitModule(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkrunt
 
     try {
         nk.leaderboardCreate('tic_tac_toe_wins', true, 'desc' as any, 'incr' as any, '0 0 * * *', {});
-        logger.info('Leaderboard initialized.');
+        nk.leaderboardCreate('tic_tac_toe_losses', true, 'desc' as any, 'incr' as any, '0 0 * * *', {});
+        logger.info('Leaderboards initialized (Wins & Losses).');
     } catch (e) {
         logger.error('LB Init Failure: ' + e);
     }
