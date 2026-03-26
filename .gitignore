@@ -20,10 +20,9 @@ backend/build/
 .env.test.local
 .env.production.local
 
-# Nakama data
+# Nakama local data
 data/
 nakama-data/
 nakama-local/
 nakama.log
 venv/
-nakama-data/
