@@ -143,7 +143,7 @@ var matchSignal: nkruntime.MatchSignalFunction = function (ctx: nkruntime.Contex
 
 var getLeaderboard: nkruntime.RpcFunction = function (ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string) {
     try {
-        var records = nk.leaderboardRecordsList('tic_tac_toe_wins', undefined, 10);
+        var records = nk.leaderboardRecordsList('tic_tac_toe_wins', null as any, 10);
         return JSON.stringify(records);
     } catch (e: any) {
         logger.error('RPC Error: ' + e);
