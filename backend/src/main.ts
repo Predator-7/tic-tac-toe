@@ -116,6 +116,7 @@ var matchLeave: nkruntime.MatchLeaveFunction = function (ctx: nkruntime.Context,
         // Record win in leaderboard
         try {
             nk.leaderboardRecordWrite('tic_tac_toe_wins', remainingPlayer.userId, remainingPlayer.username, 1);
+            logger.info('Leaderboard record (win/forfeit) for: ' + remainingPlayer.username);
         } catch (e) {
             logger.error('Failed to update leaderboard: ' + e);
         }
@@ -145,6 +146,7 @@ var matchLoop: nkruntime.MatchLoopFunction = function (ctx: nkruntime.Context, l
             if (winnerPlayer) {
                 try {
                     nk.leaderboardRecordWrite('tic_tac_toe_wins', winnerPlayer.userId, winnerPlayer.username, 1);
+                    logger.info('Leaderboard record (timeout win) for: ' + winnerPlayer.username);
                 } catch (e) {
                     logger.error('Failed to update leaderboard on timeout: ' + e);
                 }
@@ -181,6 +183,7 @@ var matchLoop: nkruntime.MatchLoopFunction = function (ctx: nkruntime.Context, l
                     // Record win in leaderboard
                     try {
                         nk.leaderboardRecordWrite('tic_tac_toe_wins', player.userId, player.username, 1);
+                        logger.info('Leaderboard record (game win) for: ' + player.username);
                     } catch (e) {
                         logger.error('Failed to update leaderboard: ' + e);
                     }
@@ -208,13 +211,17 @@ var matchSignal: nkruntime.MatchSignalFunction = function (ctx: nkruntime.Contex
 
 // RPC to fetch leaderboard records
 var getLeaderboard: nkruntime.RpcFunction = function (ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string) {
-    var records = nk.leaderboardRecordsList('tic_tac_toe_wins', [], 10);
-    return JSON.stringify(records);
+    try {
+        var records = nk.leaderboardRecordsList('tic_tac_toe_wins', [], 10);
+        return JSON.stringify(records); // Already returns { records: [...] }
+    } catch (e) {
+        logger.error('RPC Error (get_leaderboard): ' + e);
+        return JSON.stringify({ records: [] });
+    }
 };
 
 // Matchmaker callback MUST be a named function for Nakama's goja JS runtime
 var matchmakerMatched: nkruntime.MatchmakerMatchedFunction = function (ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, entries: nkruntime.MatchmakerResult[]) {
-    // If entries exist, check their properties for mode selection
     var mode = 'classic';
     if (entries.length > 0 && entries[0].properties) {
         mode = entries[0].properties.mode || 'classic';
@@ -240,11 +247,14 @@ function InitModule(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkrunt
     initializer.registerRpc('get_leaderboard', getLeaderboard);
 
     // Create Leaderboard if it doesn't exist
+    // Based on typical Nakama TS definitions:
+    // SortOrder: Descending = 0
+    // Operator: Inactive/Set = 0, Best = 1, Incr = 2
     try {
-        nk.leaderboardCreate('tic_tac_toe_wins', true, 1 as any, 1 as any, '0 0 * * *', {});
-        logger.info('Leaderboard "tic_tac_toe_wins" initialized.');
+        nk.leaderboardCreate('tic_tac_toe_wins', true, 0 as any, 2 as any, '0 0 * * *', {});
+        logger.info('Leaderboard "tic_tac_toe_wins" initialized (DESC, INCR).');
     } catch (e) {
-        logger.error('Leaderboard error: ' + e);
+        logger.error('Leaderboard Creation Error: ' + e);
     }
 
     logger.info('Tic-Tac-Toe module loaded (Server-Authoritative).');
