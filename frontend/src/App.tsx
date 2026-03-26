@@ -83,7 +83,8 @@ function App() {
             const lbData = await rpc('get_leaderboard');
             console.log('[App] Leaderboard RPC Raw Payload:', lbData.payload);
             if (lbData.payload) {
-                const parsed = JSON.parse(lbData.payload as any);
+                // If the payload is already an object, use it; otherwise parse it
+                const parsed = typeof lbData.payload === 'string' ? JSON.parse(lbData.payload) : lbData.payload;
                 console.log('[App] Leaderboard Parsed:', parsed);
                 setLeaderboard(parsed.records || []);
             }
