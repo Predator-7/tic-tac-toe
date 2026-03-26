@@ -166,7 +166,7 @@ var matchmakerMatched: nkruntime.MatchmakerMatchedFunction = function (ctx: nkru
 };
 
 // InitModule MUST be a top-level function for Nakama's goja JS engine
-export function InitModule(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, initializer: nkruntime.Initializer) {
+function InitModule(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, initializer: nkruntime.Initializer) {
     initializer.registerMatch('tictactoe', {
         matchInit: matchInit,
         matchJoinAttempt: matchJoinAttempt,

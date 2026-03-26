@@ -2,11 +2,10 @@
   "compilerOptions": {
     "target": "ES5",
     "strict": true,
-    "module": "ESNext",
-    "moduleResolution": "node",
     "esModuleInterop": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
+    "outFile": "./build/index.js",
     "rootDir": "./src",
     "types": ["nakama-runtime"],
     "ignoreDeprecations": "6.0"
