@@ -76,11 +76,21 @@ var matchJoin: nkruntime.MatchJoinFunction = function (ctx: nkruntime.Context, l
     return { state: s };
 };
 
-var matchLeave: nkruntime.MatchLeaveFunction = function (ctx, logger, nk, dispatcher, tick, state, presences) {
+function recordWin(nk: nkruntime.Nakama, logger: nkruntime.Logger, userId: string, username: string) {
+    try {
+        nk.leaderboardRecordWrite('tic_tac_toe_wins', userId, username, 1, 0, {}, 'incr' as any);
+        logger.info('Leaderboard record (win) for: ' + username + ' (' + userId + ')');
+    } catch (e) {
+        logger.error('Failed to update leaderboard: ' + e);
+    }
+}
+
+var matchLeave: nkruntime.MatchLeaveFunction = function (ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, dispatcher: nkruntime.MatchDispatcher, tick: number, state: nkruntime.MatchState, presences: nkruntime.Presence[]) {
     var s = state as MatchState;
     s.players = s.players.filter(p => !presences.find(pr => pr.userId === p.userId));
-    if (s.players.length === 0) s.emptyMatch = true;
-    else if (s.winner === null) {
+    if (s.players.length === 0) {
+        s.emptyMatch = true;
+    } else if (s.winner === null) {
         var remainingPlayer = s.players[0];
         s.winner = remainingPlayer.mark;
         recordWin(nk, logger, remainingPlayer.userId, remainingPlayer.username);
@@ -89,24 +99,14 @@ var matchLeave: nkruntime.MatchLeaveFunction = function (ctx, logger, nk, dispat
     return { state: s };
 };
 
-function recordWin(nk: nkruntime.Nakama, logger: nkruntime.Logger, userId: string, username: string) {
-    try {
-        // Most explicit call signature for Nakama v3
-        nk.leaderboardRecordWrite('tic_tac_toe_wins', userId, username, 1, 0, {}, 'incr' as any);
-        logger.info('DB WRITE ATTEMPT: Success for user ' + username);
-    } catch (e) {
-        logger.error('DB WRITE FAILED: ' + e);
-    }
-}
-
-var matchLoop: nkruntime.MatchLoopFunction = function (ctx, logger, nk, dispatcher, tick, state, messages) {
+var matchLoop: nkruntime.MatchLoopFunction = function (ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, dispatcher: nkruntime.MatchDispatcher, tick: number, state: nkruntime.MatchState, messages: nkruntime.MatchMessage[]) {
     var s = state as MatchState;
     if (s.emptyMatch) return null;
 
     if (s.timerEnabled && !s.winner && s.players.length === 2 && s.lastMoveTick > 0) {
         if (tick - s.lastMoveTick > 300) {
             s.winner = (s.turn === 'X' ? 'O' : 'X');
-            var winnerPlayer = s.players.find(p => p.mark === s.winner);
+            var winnerPlayer = s.players.find((p: Player) => p.mark === s.winner);
             if (winnerPlayer) recordWin(nk, logger, winnerPlayer.userId, winnerPlayer.username);
             dispatcher.broadcastMessage(1, JSON.stringify(s));
         }
@@ -133,31 +133,29 @@ var matchLoop: nkruntime.MatchLoopFunction = function (ctx, logger, nk, dispatch
     return { state: s };
 };
 
-var matchTerminate = function (ctx, logger, nk, dispatcher, tick, state, graceSeconds) { return { state: state }; };
-var matchSignal = function (ctx, logger, nk, dispatcher, tick, state, data) { return { state: state, data: "ok" }; };
+var matchTerminate: nkruntime.MatchTerminateFunction = function (ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, dispatcher: nkruntime.MatchDispatcher, tick: number, state: nkruntime.MatchState, graceSeconds: number) {
+    return { state: state };
+};
 
-var getLeaderboard: nkruntime.RpcFunction = function (ctx, logger, nk, payload) {
+var matchSignal: nkruntime.MatchSignalFunction = function (ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, dispatcher: nkruntime.MatchDispatcher, tick: number, state: nkruntime.MatchState, data: string) {
+    return { state: state, data: "ok" };
+};
+
+var getLeaderboard: nkruntime.RpcFunction = function (ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string) {
     try {
         var records = nk.leaderboardRecordsList('tic_tac_toe_wins', undefined, 10);
         return JSON.stringify(records);
-    } catch (e) {
+    } catch (e: any) {
+        logger.error('RPC Error: ' + e);
         return JSON.stringify({ records: [] });
     }
 };
 
-// MEGA-DEBUG RPC: Allows testing writing a win manually
-var debugAddWin: nkruntime.RpcFunction = function (ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string) {
-    try {
-        nk.leaderboardRecordWrite('tic_tac_toe_wins', ctx.userId, ctx.username, 1, 0, {}, 'incr' as any);
-        return JSON.stringify({ status: "success", userId: ctx.userId });
-    } catch (e) {
-        return JSON.stringify({ status: "error", error: e.toString() });
-    }
-};
-
-var matchmakerMatched: nkruntime.MatchmakerMatchedFunction = function (ctx, logger, nk, entries) {
+var matchmakerMatched: nkruntime.MatchmakerMatchedFunction = function (ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, entries: nkruntime.MatchmakerResult[]) {
     var mode = 'classic';
-    if (entries.length > 0 && entries[0].properties) mode = entries[0].properties.mode || 'classic';
+    if (entries.length > 0 && entries[0].properties) {
+        mode = entries[0].properties.mode || 'classic';
+    }
     return nk.matchCreate('tictactoe', { mode: mode });
 };
 
@@ -173,14 +171,17 @@ function InitModule(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkrunt
     });
 
     initializer.registerMatchmakerMatched(matchmakerMatched);
+    
+    // Register RPC
     initializer.registerRpc('get_leaderboard', getLeaderboard);
-    initializer.registerRpc('debug_add_win', debugAddWin);
 
+    // Create Leaderboard
     try {
-        // Force recreation or update to ensure 'incr' operator is active
         nk.leaderboardCreate('tic_tac_toe_wins', true, 'desc' as any, 'incr' as any, '0 0 * * *', {});
-        logger.info('Leaderboard initialized.');
+        logger.info('Leaderboard "tic_tac_toe_wins" initialized.');
     } catch (e) {
-        logger.error('LB Init Failure: ' + e);
+        logger.error('Leaderboard error: ' + e);
     }
+
+    logger.info('Tic-Tac-Toe module loaded.');
 }
