@@ -79,13 +79,16 @@ function App() {
 
     const fetchLeaderboard = async () => {
         try {
+            console.log('[App] Fetching leaderboard...');
             const lbData = await rpc('get_leaderboard');
+            console.log('[App] Leaderboard RPC Raw Payload:', lbData.payload);
             if (lbData.payload) {
                 const parsed = JSON.parse(lbData.payload as any);
+                console.log('[App] Leaderboard Parsed:', parsed);
                 setLeaderboard(parsed.records || []);
             }
         } catch (e) {
-            console.error("Failed to fetch leaderboard", e);
+            console.error("[App] Failed to fetch leaderboard", e);
         }
     };
 

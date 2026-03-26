@@ -116,7 +116,7 @@ var matchLeave: nkruntime.MatchLeaveFunction = function (ctx: nkruntime.Context,
         // Record win in leaderboard
         try {
             nk.leaderboardRecordWrite('tic_tac_toe_wins', remainingPlayer.userId, remainingPlayer.username, 1);
-            logger.info('Leaderboard record (win/forfeit) for: ' + remainingPlayer.username);
+            logger.info('Leaderboard record (win/forfeit) for: ' + remainingPlayer.username + ' (' + remainingPlayer.userId + ')');
         } catch (e) {
             logger.error('Failed to update leaderboard: ' + e);
         }
@@ -183,7 +183,7 @@ var matchLoop: nkruntime.MatchLoopFunction = function (ctx: nkruntime.Context, l
                     // Record win in leaderboard
                     try {
                         nk.leaderboardRecordWrite('tic_tac_toe_wins', player.userId, player.username, 1);
-                        logger.info('Leaderboard record (game win) for: ' + player.username);
+                        logger.info('Leaderboard record (game win) for: ' + player.username + ' (' + player.userId + ')');
                     } catch (e) {
                         logger.error('Failed to update leaderboard: ' + e);
                     }
@@ -212,8 +212,9 @@ var matchSignal: nkruntime.MatchSignalFunction = function (ctx: nkruntime.Contex
 // RPC to fetch leaderboard records
 var getLeaderboard: nkruntime.RpcFunction = function (ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string) {
     try {
-        var records = nk.leaderboardRecordsList('tic_tac_toe_wins', [], 10);
-        return JSON.stringify(records); // Already returns { records: [...] }
+        var records = nk.leaderboardRecordsList('tic_tac_toe_wins', undefined, 10);
+        logger.debug('Leaderboard fetch successful: ' + JSON.stringify(records));
+        return JSON.stringify(records);
     } catch (e) {
         logger.error('RPC Error (get_leaderboard): ' + e);
         return JSON.stringify({ records: [] });
@@ -247,12 +248,12 @@ function InitModule(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkrunt
     initializer.registerRpc('get_leaderboard', getLeaderboard);
 
     // Create Leaderboard if it doesn't exist
-    // Based on typical Nakama TS definitions:
-    // SortOrder: Descending = 0
-    // Operator: Inactive/Set = 0, Best = 1, Incr = 2
     try {
+        // Enums for SortOrder and Operator:
+        // DESC=0, ASC=1
+        // SET=0, BEST=1, INCR=2
         nk.leaderboardCreate('tic_tac_toe_wins', true, 0 as any, 2 as any, '0 0 * * *', {});
-        logger.info('Leaderboard "tic_tac_toe_wins" initialized (DESC, INCR).');
+        logger.info('Leaderboard "tic_tac_toe_wins" initialized.');
     } catch (e) {
         logger.error('Leaderboard Creation Error: ' + e);
     }
