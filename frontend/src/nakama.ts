@@ -48,3 +48,8 @@ export async function connectSocket() {
     console.log('[Nakama] Socket connected successfully.');
     return socket;
 }
+
+export async function rpc(id: string, payload: any = {}) {
+    if (!session) throw new Error("Must login first");
+    return await nakamaClient.rpc(session, id, payload);
+}
