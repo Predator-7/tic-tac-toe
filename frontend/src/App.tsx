@@ -113,9 +113,9 @@ function App() {
             await updateNickname(nickname);
             
             setMatchmaking(true);
-            // Add matchmaking with properties for mode selection
+            // Add matchmaking with properties for mode selection and nickname
             const query = `+properties.mode:${gameMode}`;
-            await socket.addMatchmaker(query, 2, 2, { mode: gameMode });
+            await socket.addMatchmaker(query, 2, 2, { mode: gameMode, nickname: nickname });
         } catch (err) {
             console.error(err);
             setError('Failed to join matchmaking.');
