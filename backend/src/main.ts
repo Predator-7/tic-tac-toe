@@ -160,6 +160,11 @@ var matchSignal: nkruntime.MatchSignalFunction = function (ctx: nkruntime.Contex
     return { state: state, data: "ok" };
 };
 
+// Matchmaker callback MUST be a named function for Nakama's goja JS runtime
+var matchmakerMatched: nkruntime.MatchmakerMatchedFunction = function (ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, entries: nkruntime.MatchmakerResult[]) {
+    return nk.matchCreate('tictactoe', {});
+};
+
 // InitModule MUST be a top-level function for Nakama's goja JS engine
 function InitModule(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, initializer: nkruntime.Initializer) {
     initializer.registerMatch('tictactoe', {
@@ -172,9 +177,7 @@ function InitModule(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkrunt
         matchSignal: matchSignal
     });
 
-    initializer.registerMatchmakerMatched(function (ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, entries: nkruntime.MatchmakerResult[]) {
-        return nk.matchCreate('tictactoe', {});
-    });
+    initializer.registerMatchmakerMatched(matchmakerMatched);
 
     logger.info('Tic-Tac-Toe module loaded (Server-Authoritative).');
 }
