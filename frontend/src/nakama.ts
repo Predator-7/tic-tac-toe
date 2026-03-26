@@ -41,7 +41,7 @@ export async function updateNickname(nickname: string) {
 export async function connectSocket() {
     console.log('[Nakama] Creating socket...');
     if (!session) throw new Error("Must login first");
-    socket = nakamaClient.createSocket(false, false);
+    socket = nakamaClient.createSocket(useSSL, false);
     
     console.log('[Nakama] Connecting socket...');
     await socket.connect(session, true);

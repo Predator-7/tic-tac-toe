@@ -5,7 +5,7 @@
   "installCommand": "npm install",
   "framework": "vite",
   "env": {
-    "VITE_NAKAMA_HOST": "",
+    "VITE_NAKAMA_HOST": "tic-tac-toe-production-1a73.up.railway.app",
     "VITE_NAKAMA_PORT": "443",
     "VITE_NAKAMA_SSL": "true"
   }
