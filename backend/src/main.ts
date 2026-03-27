@@ -129,8 +129,8 @@ function recordMatchResult(nk: nkruntime.Nakama, logger: nkruntime.Logger, winne
             // Update Losses - increment score by 1
             nk.leaderboardRecordWrite('tic_tac_toe_losses', loser.userId, loser.nickname, 1, 0, { streak: 0 }, 'incr' as any);
             
-            // Reset streak in wins record: score increment is 0, operator is 'set' to update metadata ONLY
-            nk.leaderboardRecordWrite('tic_tac_toe_wins', loser.userId, loser.nickname, 0, 0, { streak: 0 }, 'set' as any);
+            // Reset streak in wins record: score increment is 0, use 'incr' to preserve existing score while updating metadata
+            nk.leaderboardRecordWrite('tic_tac_toe_wins', loser.userId, loser.nickname, 0, 0, { streak: 0 }, 'incr' as any);
         }
     } catch (e) {
         logger.error('Failed to update match results: ' + e);
