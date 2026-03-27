@@ -157,15 +157,88 @@ function App() {
         );
     }
 
-    if (!connected) {
+    // 1. If we haven't entered/confirmed a nickname yet, show the Nickname screen
+    if (!entered) {
         return (
-            <div className="panel" style={{textAlign: 'center'}}>
-                <div className="loader"></div>
-                <div>Connecting to server...</div>
+            <div style={{textAlign: 'center', maxWidth: 500, margin: '0 auto'}}>
+                <h1 style={{fontSize: '3rem', marginBottom: 8}}>TIC TAC TOE</h1>
+                <p style={{marginBottom: 32, opacity: 0.7}}>Multiplayer • Server Authoritative • Nakama</p>
+                <div className="panel">
+                    <div style={{marginBottom: 20}}>
+                        <label style={{display: 'block', marginBottom: 12, textAlign: 'left', fontWeight: 600}}>Your Nickname</label>
+                        <input 
+                            className="input-field"
+                            type="text" 
+                            placeholder="Enter name..." 
+                            value={nickname}
+                            onChange={(e) => setNickname(e.target.value)}
+                            autoFocus
+                        />
+                    </div>
+                    <button className="button" onClick={() => handleLogin(nickname)} disabled={nickname.length < 2}>Continue & Login</button>
+                    
+                    <button 
+                        style={{background: 'none', border: 'none', color: 'rgba(255,255,255,0.5)', marginTop: 20, cursor: 'pointer', fontSize: '0.9rem'}}
+                        onClick={() => { fetchLeaderboard(); setShowLeaderboard(true); }}
+                    >
+                        View Global Ranking & Stats
+                    </button>
+                    {showLeaderboard && (
+                        <div className="modal-overlay" style={{position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20}}>
+                             <div className="panel" style={{textAlign: 'left', width: '100%', maxWidth: 500}}>
+                                <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20}}>
+                                    <h2 style={{margin: 0}}>Global Ranking</h2>
+                                    <button onClick={() => setShowLeaderboard(false)} style={{background: 'none', border: 'none', color: '#fff', cursor: 'pointer', fontSize: '1.2rem'}}>✕</button>
+                                </div>
+                                <div style={{maxHeight: 400, overflowY: 'auto'}}>
+                                    {leaderboard.length === 0 ? <p style={{opacity: 0.5}}>No records yet.</p> : (
+                                        <table style={{width: '100%', borderCollapse: 'collapse'}}>
+                                            <thead>
+                                                <tr style={{opacity: 0.5, fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '1px'}}>
+                                                    <th style={{paddingBottom: 12, textAlign: 'left'}}>Player</th>
+                                                    <th style={{paddingBottom: 12, textAlign: 'center'}}>W</th>
+                                                    <th style={{paddingBottom: 12, textAlign: 'center'}}>L</th>
+                                                    <th style={{paddingBottom: 12, textAlign: 'center'}}>Streak</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {leaderboard.map((r, i) => (
+                                                    <tr key={i} style={{borderTop: '1px solid rgba(255,255,255,0.05)'}}>
+                                                        <td style={{padding: '14px 0', fontSize: '0.9rem'}}>{r.username}</td>
+                                                        <td style={{padding: '14px 0', textAlign: 'center', fontWeight: 700, color: 'var(--success-color)'}}>{r.wins}</td>
+                                                        <td style={{padding: '14px 0', textAlign: 'center', opacity: 0.5}}>{r.losses}</td>
+                                                        <td style={{padding: '14px 0', textAlign: 'center'}}>{r.streak ? `🔥 ${r.streak}` : '-'}</td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </div>
             </div>
         );
     }
 
+    // 2. If we entered a nick but are waiting for the server connection
+    if (!connected) {
+        return (
+            <div className="panel" style={{textAlign: 'center'}}>
+                <div className="loader" style={{margin: '0 auto 20px'}}></div>
+                <div>Logging in as <strong>{nickname}</strong>...</div>
+                <button 
+                    style={{background: 'none', border: 'none', color: 'var(--primary-color)', fontSize: '0.8rem', cursor: 'pointer', marginTop: 20}} 
+                    onClick={() => { setEntered(false); setError(''); }}
+                >
+                    Cancel / Back
+                </button>
+            </div>
+        );
+    }
+
+    // 3. If connected but not in a match, show the Main Menu
     if (!matchId) {
         return (
             <div style={{textAlign: 'center', maxWidth: 500, margin: '0 auto'}}>
@@ -205,69 +278,41 @@ function App() {
                     </div>
                 ) : (
                     <div className="panel">
-                        {!entered ? (
-                            <>
-                                <div style={{marginBottom: 20}}>
-                                    <label style={{display: 'block', marginBottom: 12, textAlign: 'left', fontWeight: 600}}>Your Nickname</label>
-                                    <input 
-                                        className="input-field"
-                                        type="text" 
-                                        placeholder="Enter name..." 
-                                        value={nickname}
-                                        onChange={(e) => setNickname(e.target.value)}
-                                        autoFocus
-                                    />
-                                </div>
-                                <button className="button" onClick={() => handleLogin(nickname)} disabled={nickname.length < 2}>Continue & Login</button>
-                            </>
-                        ) : (
-                            <>
-                                <div style={{marginBottom: 24}}>
-                                    {!connected ? (
-                                        <div style={{textAlign: 'center', margin: '20px 0'}}>
-                                            <div className="loader" style={{margin: '0 auto 10px'}}></div>
-                                            <div>Authenticating account...</div>
-                                        </div>
-                                    ) : (
-                                        <>
-                                            <div style={{fontSize: '0.9rem', opacity: 0.6, marginBottom: 4}}>Logged in as</div>
-                                            <div style={{fontSize: '1.2rem', fontWeight: 700}}>{nickname}</div>
-                                            <button style={{background: 'none', border: 'none', color: 'var(--primary-color)', fontSize: '0.8rem', cursor: 'pointer', marginTop: 4}} onClick={() => { setEntered(false); setConnected(false); }}>Switch Account</button>
-                                        </>
-                                    )}
-                                </div>
+                        <div style={{marginBottom: 24}}>
+                            <div style={{fontSize: '0.9rem', opacity: 0.6, marginBottom: 4}}>Logged in as</div>
+                            <div style={{fontSize: '1.2rem', fontWeight: 700}}>{nickname}</div>
+                            <button style={{background: 'none', border: 'none', color: 'var(--primary-color)', fontSize: '0.8rem', cursor: 'pointer', marginTop: 4}} onClick={() => { setEntered(false); setConnected(false); }}>Switch Account</button>
+                        </div>
 
-                                <div style={{marginBottom: 24, display: 'flex', gap: 10}}>
-                                    <button 
-                                        style={{flex: 1, background: gameMode === 'classic' ? 'var(--accent-color)' : 'rgba(255,255,255,0.05)', height: 40, border: 'none', borderRadius: 8, color: '#fff', cursor: 'pointer', fontWeight: 600, fontSize: '0.8rem'}}
-                                        onClick={() => setGameMode('classic')}
-                                    >
-                                        CLASSIC
-                                    </button>
-                                    <button 
-                                        style={{flex: 1, background: gameMode === 'timed' ? 'var(--accent-color)' : 'rgba(255,255,255,0.05)', height: 40, border: 'none', borderRadius: 8, color: '#fff', cursor: 'pointer', fontWeight: 600, fontSize: '0.8rem'}}
-                                        onClick={() => setGameMode('timed')}
-                                    >
-                                        TIMED (30s)
-                                    </button>
-                                </div>
-                                
-                                <button className="button" onClick={findMatch} disabled={matchmaking}>{matchmaking ? 'Searching...' : 'Find Match'}</button>
-                                
-                                <button 
-                                    style={{background: 'none', border: 'none', color: 'rgba(255,255,255,0.5)', marginTop: 20, cursor: 'pointer', fontSize: '0.9rem'}}
-                                    onClick={() => { fetchLeaderboard(); setShowLeaderboard(true); }}
-                                >
-                                    View Global Ranking & Stats
-                                </button>
-                                
-                                {matchmaking && (
-                                    <div style={{marginTop: 20}}>
-                                        <div className="loader" style={{margin: '0 auto 12px'}}></div>
-                                        <p className="pulse">Searching for {gameMode} match...</p>
-                                    </div>
-                                )}
-                            </>
+                        <div style={{marginBottom: 24, display: 'flex', gap: 10}}>
+                            <button 
+                                style={{flex: 1, background: gameMode === 'classic' ? 'var(--accent-color)' : 'rgba(255,255,255,0.05)', height: 40, border: 'none', borderRadius: 8, color: '#fff', cursor: 'pointer', fontWeight: 600, fontSize: '0.8rem'}}
+                                onClick={() => setGameMode('classic')}
+                            >
+                                CLASSIC
+                            </button>
+                            <button 
+                                style={{flex: 1, background: gameMode === 'timed' ? 'var(--accent-color)' : 'rgba(255,255,255,0.05)', height: 40, border: 'none', borderRadius: 8, color: '#fff', cursor: 'pointer', fontWeight: 600, fontSize: '0.8rem'}}
+                                onClick={() => setGameMode('timed')}
+                            >
+                                TIMED (30s)
+                            </button>
+                        </div>
+                        
+                        <button className="button" onClick={findMatch} disabled={matchmaking}>{matchmaking ? 'Searching...' : 'Find Match'}</button>
+                        
+                        <button 
+                            style={{background: 'none', border: 'none', color: 'rgba(255,255,255,0.5)', marginTop: 20, cursor: 'pointer', fontSize: '0.9rem'}}
+                            onClick={() => { fetchLeaderboard(); setShowLeaderboard(true); }}
+                        >
+                            View Global Ranking & Stats
+                        </button>
+                        
+                        {matchmaking && (
+                            <div style={{marginTop: 20}}>
+                                <div className="loader" style={{margin: '0 auto 12px'}}></div>
+                                <p className="pulse">Searching for {gameMode} match...</p>
+                            </div>
                         )}
                     </div>
                 )}
