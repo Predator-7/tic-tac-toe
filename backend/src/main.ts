@@ -1,5 +1,3 @@
-// Tic-Tac-Toe Server-Authoritative Match Module for Nakama
-
 interface Player {
     userId: string;
     sessionId: string;
@@ -94,7 +92,6 @@ var matchLeave: nkruntime.MatchLeaveFunction = function (ctx: nkruntime.Context,
         var remainingPlayer = s.players[0];
         s.winner = remainingPlayer.mark;
         
-        // Record results
         recordMatchResult(nk, logger, remainingPlayer, leavingPlayers[0] || null, false);
         
         dispatcher.broadcastMessage(1, JSON.stringify(s));
@@ -107,7 +104,6 @@ function recordMatchResult(nk: nkruntime.Nakama, logger: nkruntime.Logger, winne
         if (isDraw) return;
 
         if (winner) {
-            // 1. Get current streak from metadata
             var currentStreak = 1;
             try {
                 var records = nk.leaderboardRecordsList('tic_tac_toe_wins', [winner.userId], 1);
@@ -121,22 +117,18 @@ function recordMatchResult(nk: nkruntime.Nakama, logger: nkruntime.Logger, winne
                 logger.error('Error fetching streak: ' + e);
             }
 
-            // 2. Write SINGLE update: increment score by 1 AND update streak metadata
             nk.leaderboardRecordWrite('tic_tac_toe_wins', winner.userId, winner.nickname, 1, 0, { streak: currentStreak }, 'incr' as any);
         }
 
         if (loser) {
-            // Update Losses - increment score by 1
             nk.leaderboardRecordWrite('tic_tac_toe_losses', loser.userId, loser.nickname, 1, 0, { streak: 0 }, 'incr' as any);
             
-            // Reset streak in wins record
             try {
                 var records = nk.leaderboardRecordsList('tic_tac_toe_wins', [loser.userId], 1);
                 var currentWins = 0;
                 if (records.ownerRecords && records.ownerRecords.length > 0) {
                     currentWins = records.ownerRecords[0].score;
                 }
-                // Use 'set' with the CURRENT wins to ensure score is preserved while metadata is updated to 0
                 nk.leaderboardRecordWrite('tic_tac_toe_wins', loser.userId, loser.nickname, currentWins, 0, { streak: 0 }, 'set' as any);
             } catch (e) {
                 logger.error('Error resetting streak: ' + e);
@@ -204,10 +196,8 @@ var getLeaderboard: nkruntime.RpcFunction = function (ctx: nkruntime.Context, lo
         var winRecords = nk.leaderboardRecordsList('tic_tac_toe_wins', null as any, 100);
         var lossRecords = nk.leaderboardRecordsList('tic_tac_toe_losses', null as any, 100);
         
-        // Map to store combined data by userId
         var users: {[key: string]: any} = {};
 
-        // Process wins
         if (winRecords.records) {
             for (var r of winRecords.records) {
                 users[r.ownerId] = {
@@ -220,7 +210,6 @@ var getLeaderboard: nkruntime.RpcFunction = function (ctx: nkruntime.Context, lo
             }
         }
 
-        // Process losses
         if (lossRecords.records) {
             for (var lr of lossRecords.records) {
                 if (users[lr.ownerId]) {
@@ -237,7 +226,6 @@ var getLeaderboard: nkruntime.RpcFunction = function (ctx: nkruntime.Context, lo
             }
         }
 
-        // Convert map to array and sort by wins descending
         var combined = Object.keys(users).map(id => users[id]);
         combined.sort((a, b) => b.wins - a.wins);
 
@@ -281,7 +269,7 @@ function InitModule(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkrunt
     try {
         nk.leaderboardCreate('tic_tac_toe_wins', true, 'desc' as any, 'incr' as any, '0 0 * * *', {});
         nk.leaderboardCreate('tic_tac_toe_losses', true, 'desc' as any, 'incr' as any, '0 0 * * *', {});
-        logger.info('Leaderboards initialized (Wins & Losses).');
+        logger.info('Leaderboards initialized (Wins \u0026 Losses).');
     } catch (e) {
         logger.error('LB Init Failure: ' + e);
     }

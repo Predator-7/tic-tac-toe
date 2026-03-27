@@ -12,19 +12,13 @@ export let socket: Socket | null = null;
 
 export async function login(username: string) {
     const customId = `tictactoe_user_${username}`;
-    console.log('[Nakama] Attempting login with customId:', customId);
     try {
         session = await nakamaClient.authenticateCustom(customId, true);
-        
-        // Also update the display name immediately to match the clean username
         await nakamaClient.updateAccount(session, {
             display_name: username,
         });
-
-        console.log('[Nakama] Login successful.');
         return session;
     } catch (err) {
-        console.error('[Nakama] Login failed:', err);
         throw err;
     }
 }
@@ -34,17 +28,12 @@ export async function updateNickname(nickname: string) {
     await nakamaClient.updateAccount(session, {
         display_name: nickname,
     });
-    console.log('[Nakama] Nickname updated to:', nickname);
 }
 
 export async function connectSocket() {
-    console.log('[Nakama] Creating socket...');
     if (!session) throw new Error("Must login first");
     socket = nakamaClient.createSocket(useSSL, false);
-    
-    console.log('[Nakama] Connecting socket...');
     await socket.connect(session, true);
-    console.log('[Nakama] Socket connected successfully.');
     return socket;
 }
 

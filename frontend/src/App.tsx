@@ -36,15 +36,9 @@ function App() {
     const [error, setError] = useState('');
     const [nickname, setNickname] = useState(localStorage.getItem('nickname') || '');
     const [entered, setEntered] = useState(false);
-    
-    // Mode selection
     const [gameMode, setGameMode] = useState<'classic' | 'timed'>('classic');
-
-    // Leaderboard state
     const [leaderboard, setLeaderboard] = useState<LeaderboardRecord[]>([]);
     const [showLeaderboard, setShowLeaderboard] = useState(false);
-
-    // Socket & Timer state
     const socketRef = useRef<any>(null);
     const [timeLeft, setTimeLeft] = useState(30);
     const timerRef = useRef<any>(null);
@@ -58,22 +52,21 @@ function App() {
 
     const handleLogin = async (name: string) => {
         try {
-            setError(''); // Clear previous error
+            setError('');
             const sess = await login(name);
             const sock = await connectSocket();
             socketRef.current = sock;
-            setMySessionId(sess.user_id || null); // Use user_id as identifier
+            setMySessionId(sess.user_id || null);
             setConnected(true);
             setEntered(true);
             localStorage.setItem('nickname', name);
 
-            // Fetch leaderboard after login
             fetchLeaderboard();
 
             sock.onmatchmakermatched = async (matched) => {
                 const match = await sock.joinMatch(matched.match_id, matched.token);
                 setMatchId(match.match_id);
-                setMySessionId(match.self.session_id); // In-match identifier
+                setMySessionId(match.self.session_id);
                 setMatchmaking(false);
             };
 
@@ -125,12 +118,11 @@ function App() {
             localStorage.setItem('nickname', nickname);
             
             setMatchmaking(true);
-            setError(''); // Clear previous errors
+            setError('');
             
             const mode = gameMode || 'classic';
             const query = `+properties.mode:${mode}`;
             
-            console.log('[App] Joining matchmaking with query:', query);
             await currentSocket.addMatchmaker(query, 2, 2, { mode: mode, nickname: nickname });
         } catch (err: any) {
             console.error('[App] Matchmaking error:', err);
@@ -172,7 +164,6 @@ function App() {
         );
     }
 
-    // 1. If we haven't entered/confirmed a nickname yet, show the Nickname screen
     if (!entered) {
         return (
             <div style={{textAlign: 'center', maxWidth: 500, margin: '0 auto'}}>
@@ -237,7 +228,6 @@ function App() {
         );
     }
 
-    // 2. If we entered a nick but are waiting for the server connection
     if (!connected) {
         return (
             <div className="panel" style={{textAlign: 'center'}}>
@@ -253,7 +243,6 @@ function App() {
         );
     }
 
-    // 3. If connected but not in a match, show the Main Menu
     if (!matchId) {
         return (
             <div style={{textAlign: 'center', maxWidth: 500, margin: '0 auto'}}>
@@ -351,7 +340,7 @@ function App() {
     if (gameState.winner) {
         if (gameState.winner === 'Draw') status = "It's a Draw!";
         else if (me && gameState.winner === me.mark) status = "You Won! 🎉";
-        else status = "You Lost! 😢";
+        else status = "You Lost! \ud83d\ude22";
     } else if (opponent) {
         if (me && gameState.turn === me.mark) status = "Your Turn";
         else status = "Opponent's Turn";
@@ -393,8 +382,8 @@ function App() {
                 </div>
 
                 <div className="players-info">
-                    <div style={{opacity: me && gameState.turn === me.mark ? 1 : 0.5}}>You ({me?.mark}) {me && gameState.turn === me.mark ? '●' : ''}</div>
-                    <div style={{opacity: opponent && gameState.turn === opponent.mark ? 1 : 0.5}}>{opponent?.mark || '?'} {opponent?.nickname} {opponent && gameState.turn === opponent.mark ? '●' : ''}</div>
+                    <div style={{opacity: me && gameState.turn === me.mark ? 1 : 0.5}}>You ({me?.mark}) {me && gameState.turn === me.mark ? '\u25cf' : ''}</div>
+                    <div style={{opacity: opponent && gameState.turn === opponent.mark ? 1 : 0.5}}>{opponent?.mark || '?'} {opponent?.nickname} {opponent && gameState.turn === opponent.mark ? '\u25cf' : ''}</div>
                 </div>
 
                 <div style={{marginTop: 20, textAlign: 'center', fontSize: '0.8rem', opacity: 0.4}}>
