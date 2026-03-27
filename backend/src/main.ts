@@ -104,27 +104,32 @@ var matchLeave: nkruntime.MatchLeaveFunction = function (ctx: nkruntime.Context,
 
 function recordMatchResult(nk: nkruntime.Nakama, logger: nkruntime.Logger, winner: Player | null, loser: Player | null, isDraw: boolean) {
     try {
-        if (isDraw) return; // Optional: could track draws too
+        if (isDraw) return;
 
         if (winner) {
-            // Update Wins
-            nk.leaderboardRecordWrite('tic_tac_toe_wins', winner.userId, winner.nickname, 1, 0, {}, 'incr' as any);
-            
-            // Update Streak: Get current, increment, and store in metadata or separate tracker
-            // For simplicity in a single RPC fetch, we'll store streaks in the metadata of the 'wins' record
-            var records = nk.leaderboardRecordsList('tic_tac_toe_wins', [winner.userId], 1);
+            // 1. Get current streak from metadata
             var currentStreak = 1;
-            if (records.ownerRecords && records.ownerRecords.length > 0) {
-                var meta = records.ownerRecords[0].metadata;
-                if (meta && meta.streak) currentStreak = (meta.streak as number) + 1;
+            try {
+                var records = nk.leaderboardRecordsList('tic_tac_toe_wins', [winner.userId], 1);
+                if (records.ownerRecords && records.ownerRecords.length > 0) {
+                    var meta = records.ownerRecords[0].metadata;
+                    if (meta && typeof meta.streak === 'number') {
+                        currentStreak = meta.streak + 1;
+                    }
+                }
+            } catch (e) {
+                logger.error('Error fetching streak: ' + e);
             }
+
+            // 2. Write SINGLE update: increment score by 1 AND update streak metadata
             nk.leaderboardRecordWrite('tic_tac_toe_wins', winner.userId, winner.nickname, 1, 0, { streak: currentStreak }, 'incr' as any);
         }
 
         if (loser) {
-            // Update Losses
+            // Update Losses - increment score by 1
             nk.leaderboardRecordWrite('tic_tac_toe_losses', loser.userId, loser.nickname, 1, 0, { streak: 0 }, 'incr' as any);
-            // Reset streak in wins record too
+            
+            // Reset streak in wins record: score increment is 0, operator is 'set' to update metadata ONLY
             nk.leaderboardRecordWrite('tic_tac_toe_wins', loser.userId, loser.nickname, 0, 0, { streak: 0 }, 'set' as any);
         }
     } catch (e) {
@@ -186,26 +191,49 @@ var matchSignal: nkruntime.MatchSignalFunction = function (ctx: nkruntime.Contex
 
 var getLeaderboard: nkruntime.RpcFunction = function (ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string) {
     try {
-        var winRecords = nk.leaderboardRecordsList('tic_tac_toe_wins', null as any, 10);
+        var winRecords = nk.leaderboardRecordsList('tic_tac_toe_wins', null as any, 100);
         var lossRecords = nk.leaderboardRecordsList('tic_tac_toe_losses', null as any, 100);
         
-        // Merge data for display
-        var combined = (winRecords.records || []).map(r => {
-            var losses = 0;
-            var lRecord = (lossRecords.records || []).find(lr => lr.ownerId === r.ownerId);
-            if (lRecord) losses = lRecord.score;
-            
-            return {
-                username: r.username,
-                userId: r.ownerId,
-                wins: r.score,
-                losses: losses,
-                streak: (r.metadata && r.metadata.streak) ? r.metadata.streak : 0
-            };
-        });
+        // Map to store combined data by userId
+        var users: {[key: string]: any} = {};
 
-        return JSON.stringify({ records: combined });
+        // Process wins
+        if (winRecords.records) {
+            for (var r of winRecords.records) {
+                users[r.ownerId] = {
+                    username: r.username || 'Anonymous',
+                    userId: r.ownerId,
+                    wins: r.score,
+                    losses: 0,
+                    streak: (r.metadata && typeof r.metadata.streak === 'number') ? r.metadata.streak : 0
+                };
+            }
+        }
+
+        // Process losses
+        if (lossRecords.records) {
+            for (var lr of lossRecords.records) {
+                if (users[lr.ownerId]) {
+                    users[lr.ownerId].losses = lr.score;
+                } else {
+                    users[lr.ownerId] = {
+                        username: lr.username || 'Anonymous',
+                        userId: lr.ownerId,
+                        wins: 0,
+                        losses: lr.score,
+                        streak: 0
+                    };
+                }
+            }
+        }
+
+        // Convert map to array and sort by wins descending
+        var combined = Object.keys(users).map(id => users[id]);
+        combined.sort((a, b) => b.wins - a.wins);
+
+        return JSON.stringify({ records: combined.slice(0, 50) });
     } catch (e: any) {
+        logger.error('LB RPC Failure: ' + e);
         return JSON.stringify({ records: [] });
     }
 };

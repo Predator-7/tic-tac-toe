@@ -49,35 +49,44 @@ function App() {
     const timerRef = useRef<any>(null);
 
     useEffect(() => {
-        void (async () => {
-            try {
-                await login();
-                const sock = await connectSocket();
-                setConnected(true);
-
-                // Initial leaderboard fetch
-                fetchLeaderboard();
-
-                sock.onmatchmakermatched = async (matched) => {
-                    const match = await sock.joinMatch(matched.match_id, matched.token);
-                    setMatchId(match.match_id);
-                    setMySessionId(match.self.session_id);
-                    setMatchmaking(false);
-                };
-
-                sock.onmatchdata = (matchData: MatchData) => {
-                    if (matchData.op_code === 1) {
-                        const state = JSON.parse(new TextDecoder().decode(matchData.data));
-                        setGameState(state);
-                        if (state.timerEnabled) setTimeLeft(30);
-                    }
-                };
-            } catch (err) {
-                console.error(err);
-                setError('Failed to connect to game server. Is Nakama running?');
-            }
-        })();
+        const savedNick = localStorage.getItem('nickname');
+        if (savedNick && savedNick.length >= 2) {
+            handleLogin(savedNick);
+        }
     }, []);
+
+    const handleLogin = async (name: string) => {
+        try {
+            setError(''); // Clear previous error
+            const sess = await login(name);
+            const sock = await connectSocket();
+            setMySessionId(sess.user_id || null); // Use user_id as identifier
+            setConnected(true);
+            setEntered(true);
+            localStorage.setItem('nickname', name);
+
+            // Fetch leaderboard after login
+            fetchLeaderboard();
+
+            sock.onmatchmakermatched = async (matched) => {
+                const match = await sock.joinMatch(matched.match_id, matched.token);
+                setMatchId(match.match_id);
+                setMySessionId(match.self.session_id); // In-match identifier
+                setMatchmaking(false);
+            };
+
+            sock.onmatchdata = (matchData: MatchData) => {
+                if (matchData.op_code === 1) {
+                    const state = JSON.parse(new TextDecoder().decode(matchData.data));
+                    setGameState(state);
+                    if (state.timerEnabled) setTimeLeft(30);
+                }
+            };
+        } catch (err) {
+            console.error(err);
+            setError('Failed to connect to game server. Is Nakama running?');
+        }
+    };
 
     const fetchLeaderboard = async () => {
         try {
@@ -212,14 +221,23 @@ function App() {
                                         autoFocus
                                     />
                                 </div>
-                                <button className="button" onClick={() => nickname.length >= 2 && setEntered(true)} disabled={nickname.length < 2}>Continue</button>
+                                <button className="button" onClick={() => handleLogin(nickname)} disabled={nickname.length < 2}>Continue & Login</button>
                             </>
                         ) : (
                             <>
                                 <div style={{marginBottom: 24}}>
-                                    <div style={{fontSize: '0.9rem', opacity: 0.6, marginBottom: 4}}>Ready as</div>
-                                    <div style={{fontSize: '1.2rem', fontWeight: 700}}>{nickname}</div>
-                                    <button style={{background: 'none', border: 'none', color: 'var(--primary-color)', fontSize: '0.8rem', cursor: 'pointer', marginTop: 4}} onClick={() => setEntered(false)}>Change Name</button>
+                                    {!connected ? (
+                                        <div style={{textAlign: 'center', margin: '20px 0'}}>
+                                            <div className="loader" style={{margin: '0 auto 10px'}}></div>
+                                            <div>Authenticating account...</div>
+                                        </div>
+                                    ) : (
+                                        <>
+                                            <div style={{fontSize: '0.9rem', opacity: 0.6, marginBottom: 4}}>Logged in as</div>
+                                            <div style={{fontSize: '1.2rem', fontWeight: 700}}>{nickname}</div>
+                                            <button style={{background: 'none', border: 'none', color: 'var(--primary-color)', fontSize: '0.8rem', cursor: 'pointer', marginTop: 4}} onClick={() => { setEntered(false); setConnected(false); }}>Switch Account</button>
+                                        </>
+                                    )}
                                 </div>
 
                                 <div style={{marginBottom: 24, display: 'flex', gap: 10}}>

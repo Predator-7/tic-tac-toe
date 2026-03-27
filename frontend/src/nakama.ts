@@ -1,6 +1,5 @@
 import { Client, Session } from '@heroiclabs/nakama-js';
 import type { Socket } from '@heroiclabs/nakama-js';
-import { v4 as uuidv4 } from 'uuid';
 
 const host = import.meta.env.VITE_NAKAMA_HOST?.trim() || 'tic-tac-toe-production-1a73.up.railway.app';
 const port = import.meta.env.VITE_NAKAMA_PORT?.trim() || '443';
@@ -11,17 +10,10 @@ export const nakamaClient = new Client('defaultkey', host, port, useSSL);
 export let session: Session | null = null;
 export let socket: Socket | null = null;
 
-let deviceId = localStorage.getItem('deviceId');
-if (!deviceId || deviceId.length < 10) {
-    console.log('[Nakama] Resetting invalid deviceId:', deviceId);
-    deviceId = uuidv4();
-    localStorage.setItem('deviceId', deviceId);
-}
-
-export async function login() {
-    console.log('[Nakama] Attempting login with deviceId:', deviceId);
+export async function login(username: string) {
+    console.log('[Nakama] Attempting login with username:', username);
     try {
-        session = await nakamaClient.authenticateDevice(deviceId as string, true);
+        session = await nakamaClient.authenticateCustom(username, true);
         console.log('[Nakama] Login successful.');
         return session;
     } catch (err) {
