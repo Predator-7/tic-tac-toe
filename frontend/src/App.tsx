@@ -116,9 +116,6 @@ function App() {
         try {
             if (!nickname) return;
             localStorage.setItem('nickname', nickname);
-            const { updateNickname } = await import('./nakama');
-            await updateNickname(nickname);
-            
             setMatchmaking(true);
             const query = `+properties.mode:${gameMode}`;
             await socket.addMatchmaker(query, 2, 2, { mode: gameMode, nickname: nickname });
