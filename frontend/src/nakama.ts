@@ -11,9 +11,16 @@ export let session: Session | null = null;
 export let socket: Socket | null = null;
 
 export async function login(username: string) {
-    console.log('[Nakama] Attempting login with username:', username);
+    const customId = `tictactoe_user_${username}`;
+    console.log('[Nakama] Attempting login with customId:', customId);
     try {
-        session = await nakamaClient.authenticateCustom(username, true);
+        session = await nakamaClient.authenticateCustom(customId, true);
+        
+        // Also update the display name immediately to match the clean username
+        await nakamaClient.updateAccount(session, {
+            display_name: username,
+        });
+
         console.log('[Nakama] Login successful.');
         return session;
     } catch (err) {
