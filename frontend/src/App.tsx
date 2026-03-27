@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { login, connectSocket, socket, rpc } from './nakama';
+import { login, connectSocket, rpc } from './nakama';
 import type { MatchData } from '@heroiclabs/nakama-js';
 import './index.css';
 
@@ -44,7 +44,8 @@ function App() {
     const [leaderboard, setLeaderboard] = useState<LeaderboardRecord[]>([]);
     const [showLeaderboard, setShowLeaderboard] = useState(false);
 
-    // Timer state
+    // Socket & Timer state
+    const socketRef = useRef<any>(null);
     const [timeLeft, setTimeLeft] = useState(30);
     const timerRef = useRef<any>(null);
 
@@ -60,6 +61,7 @@ function App() {
             setError(''); // Clear previous error
             const sess = await login(name);
             const sock = await connectSocket();
+            socketRef.current = sock;
             setMySessionId(sess.user_id || null); // Use user_id as identifier
             setConnected(true);
             setEntered(true);
@@ -112,22 +114,34 @@ function App() {
     }, [gameState]);
 
     const findMatch = async () => {
-        if (!socket) return;
+        const currentSocket = socketRef.current;
+        if (!currentSocket) {
+            setError('Game server not connected. Please try logging in again.');
+            return;
+        }
+
         try {
             if (!nickname) return;
             localStorage.setItem('nickname', nickname);
+            
             setMatchmaking(true);
-            const query = `+properties.mode:${gameMode}`;
-            await socket.addMatchmaker(query, 2, 2, { mode: gameMode, nickname: nickname });
-        } catch (err) {
-            console.error(err);
-            setError('Failed to join matchmaking.');
+            setError(''); // Clear previous errors
+            
+            const mode = gameMode || 'classic';
+            const query = `+properties.mode:${mode}`;
+            
+            console.log('[App] Joining matchmaking with query:', query);
+            await currentSocket.addMatchmaker(query, 2, 2, { mode: mode, nickname: nickname });
+        } catch (err: any) {
+            console.error('[App] Matchmaking error:', err);
+            setError(`Matchmaking failed: ${err.message || 'Unknown error'}`);
             setMatchmaking(false);
         }
     };
 
     const makeMove = async (index: number) => {
-        if (!socket || !matchId || !gameState) return;
+        const currentSocket = socketRef.current;
+        if (!currentSocket || !matchId || !gameState) return;
         
         const me = gameState.players.find(p => p.sessionId === mySessionId);
         if (!me || gameState.turn !== me.mark || gameState.board[index] !== '' || gameState.winner) {
@@ -135,12 +149,13 @@ function App() {
         }
 
         const payload = JSON.stringify({ position: index });
-        await socket.sendMatchState(matchId, 2, payload);
+        await currentSocket.sendMatchState(matchId, 2, payload);
     };
 
     const leaveMatch = () => {
-        if (socket && matchId) {
-            socket.leaveMatch(matchId);
+        const currentSocket = socketRef.current;
+        if (currentSocket && matchId) {
+            currentSocket.leaveMatch(matchId);
         }
         setMatchId(null);
         setGameState(null);
