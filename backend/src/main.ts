@@ -195,16 +195,6 @@ var matchTerminate: nkruntime.MatchTerminateFunction = function (ctx: nkruntime.
     return { state: state }; 
 };
 
-var debugRecordResult: nkruntime.RpcFunction = function (ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string) {
-    try {
-        var data = JSON.parse(payload);
-        recordMatchResult(nk, logger, data.winner, data.loser, false);
-        return JSON.stringify({ status: "ok" });
-    } catch (e) {
-        return JSON.stringify({ status: "error", message: e });
-    }
-};
-
 var matchSignal: nkruntime.MatchSignalFunction = function (ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, dispatcher: nkruntime.MatchDispatcher, tick: number, state: nkruntime.MatchState, data: string) { 
     return { state: state, data: "ok" }; 
 };
@@ -287,7 +277,6 @@ function InitModule(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkrunt
 
     initializer.registerMatchmakerMatched(matchmakerMatched);
     initializer.registerRpc('get_leaderboard', getLeaderboard);
-    initializer.registerRpc('debug_record_result', debugRecordResult);
 
     try {
         nk.leaderboardCreate('tic_tac_toe_wins', true, 'desc' as any, 'incr' as any, '0 0 * * *', {});
