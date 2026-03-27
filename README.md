@@ -1,61 +1,107 @@
 # LILA Tic-Tac-Toe Multiplayer Game
 
-A production-ready, server-authoritative multiplayer Tic-Tac-Toe game built with a React frontend and a Nakama Server backend. 
+A production-grade, server-authoritative multiplayer Tic-Tac-Toe game. Built with a React frontend and a Nakama Server backend running custom TypeScript match logic.
 
-## 🚀 Live Demo
-- **Backend API**: `https://tic-tac-toe-production-1a73.up.railway.app`
-
-## ✨ Features (Standard)
-- **Server-Authoritative Game Logic**: Game state, validation, and turn management happen entirely on the server using TypeScript running inside the Nakama backend.
-- **Matchmaking**: Built-in Nakama matchmaker pairs players dynamically.
-- **Responsive UI**: Web UI with dark mode, glowing accents, and elegant animations.
-- **Cheat Prevention**: The client can't force wins; all moves are server-validated.
-- **Automatic Match Cleanup**: Robust handling for player disconnections.
-
-## 🎁 Bonus Features
-- **Concurrent Game Support**: Handles multiple simultaneous game sessions with full room isolation.
-- **Leaderboard System**: Tracks player wins and displays global rankings via a custom server-authoritative leaderboard (Nakama).
-- **Timer-Based Gameplay**: 30-second turn limit with automatic forfeit on timeout, enforced by the server match-loop.
-- **Mode Selection**: Integrated matchmaking that supports separate queues for 'Classic' and 'Timed' modes.
-- **Real-time UI Indicators**: Visual countdown timers and live player state markers.
-
-## 🛠 Tech Stack
-- **Frontend**: React (Vite 6+), TypeScript, `@heroiclabs/nakama-js`, Vanilla CSS.
-- **Backend**: Nakama Server (Authoritative Match Handler), PostgreSQL.
-- **Infrastructure**: Railway (Backend), Vercel (Frontend).
+## 🚀 Live Links
+- **Frontend App**: [https://tic-tac-toe-six-fawn.vercel.app](https://tic-tac-toe-six-fawn.vercel.app)
+- **Backend API**: [https://tic-tac-toe-production-1a73.up.railway.app](https://tic-tac-toe-production-1a73.up.railway.app)
 
 ---
 
-## 🏗 Architecture and Design
-- **Server-Authoritative Match Handler**: The match state (`board`, `turn`, `winner`, `players`) is managed purely by the server. When the client sends an operation (`opCode=2`), the server validates it and broadcasts the new state (`opCode=1`).
-- **Concurrent Match Isolation**: Every match is treated as a separate instance with its own sequestered state, allowing thousands of simultaneous games.
-- **Performance**: The backend runs at 10 ticks/second, ensuring low latency for state updates and timer checks.
+## 🏗 Architecture and Design Decisions
+
+### Server-Authoritative Logic
+The core design philosophy is **security and synchronization**. Unlike traditional P2P games where a client could "force" a win, all game state calculations (board updates, turn validation, win detection, and move timers) occur on the Nakama server.
+- **State Management**: The server maintains a strict `MatchState` object for every room. Clients only receive the result of validated moves.
+- **Tick Rate**: The match loop runs at 10 ticks/second, providing high responsiveness while minimizing server CPU usage.
+- **Validation**: Every move (`opCode 2`) is checked against the current turn and board state before being accepted and broadcasted (`opCode 1`).
+
+### Real-time Infrastructure (Nakama)
+Nakama was chosen for its robust out-of-the-box features:
+- **WebSockets**: Bi-directional communication for zero-latency gameplay.
+- **Matchmaker**: Uses an properties-based query system (`+properties.mode:classic`) to pair players into secluded match instances.
+- **Leaderboards**: Native leaderboard support for persistent global rankings and win/loss/streak tracking.
+
+### Tech Stack
+- **Frontend**: React (Vite), TypeScript, `@heroiclabs/nakama-js`.
+- **Backend**: Nakama TypeScript Runtime (Node.js/Go backend environment).
+- **Database**: PostgreSQL (persisting user accounts and leaderboard scores).
 
 ---
 
-## 💻 Local Development
+## 💻 Setup and Installation
 
 ### Prerequisites
-- Node.js (v18+)
-- (Optional) Docker for local testing
+- **Node.js**: v18 or newer.
+- **Docker**: (Optional) For running Nakama locally.
 
-### Backend
-1. `cd backend`
-2. `npm install`
-3. `npm run build` (produces bundled `build/index.js` via `tsc --outFile`)
-4. Backend is pre-configured for Docker/Railway deployment.
+### 1. Backend Setup
+1. Navigate to the backend directory: `cd backend`
+2. Install dependencies: `npm install`
+3. Compile the TypeScript module: `npm run build`
+   - This uses `tsc` to bundle the code into `build/index.js` which Nakama loads at startup.
+4. For local running: Use the provided `docker-compose.yml` (if available) or point to a remote Nakama instance.
 
-### Frontend
-1. `cd frontend`
-2. `npm install`
-3. `npm run dev`
-4. Open `http://localhost:5173` in two browser windows to test matchmaking.
+### 2. Frontend Setup
+1. Navigate to the frontend directory: `cd frontend`
+2. Install dependencies: `npm install`
+3. Create a `.env` file (or use defaults):
+   ```env
+   VITE_NAKAMA_HOST=tic-tac-toe-production-1a73.up.railway.app
+   VITE_NAKAMA_PORT=443
+   VITE_NAKAMA_SSL=true
+   ```
+4. Start the dev server: `npm run dev`
+5. Open `http://localhost:5173` in your browser.
 
 ---
 
-## 🧪 How to Test
-1. Visit the production/local frontend.
-2. Enter a nickname and click **"Find Match"**.
-3. Open another tab/browser and repeat to pair.
-4. Note the **Timer** counting down (30s moves).
-5. Upon winning, check the **Leaderboard** from the main menu to see your rank!
+## 🚀 Deployment Process
+
+### Backend (Railway)
+The backend is deployed using a Docker-based workflow on Railway:
+1. **Dockerfile**: A multi-stage Dockerfile compiles the TypeScript code and then runs the Nakama server image.
+2. **PostgreSQL**: A managed PostgreSQL database is linked to Nakama for persistent storage.
+3. **Environment**: Nakama is configured via environment variables (DB connection string, server keys).
+
+### Frontend (Vercel)
+The frontend is hosted on Vercel with automatic CI/CD:
+1. **Build Command**: `npm run build`
+2. **Output Directory**: `dist`
+3. **Environment Variables**: The Nakama host and SSL settings are configured in the Vercel project settings.
+
+---
+
+## ⚙️ API / Server Configuration Details
+
+### Authentication
+The system uses **Custom Authentication** to ensure persistent user sessions:
+- **Authentication ID**: `tictactoe_user_{nickname}`
+- This allows users to keep their stats across devices by entering the same nickname.
+
+### Leaderboards
+Two global leaderboards are initialized in `InitModule`:
+1. `tic_tac_toe_wins`: Sorted descending (desc), operator increment (incr). Stores total wins and current win streaks in metadata.
+2. `tic_tac_toe_losses`: Sorted descending, operator increment. Stores total losses.
+
+### Custom RPCs
+- `get_leaderboard`: A custom server-side RPC that aggregates data from both win and loss leaderboards into a unified "Global Ranking" view for the frontend.
+
+---
+
+## 🧪 How to Test Multiplayer
+
+To verify the multiplayer functionality yourself:
+1. **Open Two Tabs**: Open the [Live App](https://tic-tac-toe-six-fawn.vercel.app) in two separate browser tabs or windows.
+2. **Login**: 
+   - Tab 1: Enter "PlayerA" and login.
+   - Tab 2: Enter "PlayerB" and login.
+3. **Matchmaking**: 
+   - In both tabs, select "CLASSIC" or "TIMED" and click **"Find Match"**.
+4. **Gameplay**: 
+   - The server will match the two players immediately.
+   - Validating turns: Try clicking out of turn to see that the server ignores invalid moves.
+   - Timer test: In "Timed" mode, wait 30s as a player; the server will automatically forfeit the game and award the win to the opponent.
+5. **Leaderboard**: 
+   - Complete the match.
+   - Go back to the menu and click **"View Global Ranking"** to see the scores updated in real-time.
